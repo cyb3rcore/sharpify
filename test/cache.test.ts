@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mkdtempSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { computeCacheKey, cacheSubpath, CacheManager } from '../src/cache'
@@ -59,20 +59,27 @@ describe('CacheManager', () => {
   it('prune is no-op when under maxSize', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cm-'))
     const cm = new CacheManager(dir, 1024 * 1024)
-    // Create a small file
-    writeFileSync(join(dir, 'test'), 'x')
+    const sub = join(dir, 'ab')
+    mkdirSync(sub, { recursive: true })
+    writeFileSync(join(sub, 'test'), 'x')
     cm.prune() // Should not delete anything
-    expect(existsSync(join(dir, 'test'))).toBe(true)
+    expect(existsSync(join(sub, 'test'))).toBe(true)
   })
 
   it('prune removes oldest files when over maxSize', () => {
     const dir = mkdtempSync(join(tmpdir(), 'cm-'))
     const cm = new CacheManager(dir, 50) // tiny max
-    writeFileSync(join(dir, 'old'), Buffer.alloc(40))
-    writeFileSync(join(dir, 'new'), Buffer.alloc(40))
-    cm.recordAccess('new')
+    const sub = join(dir, 'ab')
+    mkdirSync(sub, { recursive: true })
+    writeFileSync(join(sub, 'old'), Buffer.alloc(40))
+    // Set old file's timestamps clearly in the past so sort is deterministic
+    const past = new Date(Date.now() - 60_000)
+    utimesSync(join(sub, 'old'), past, past)
+    writeFileSync(join(sub, 'new'), Buffer.alloc(40))
+    cm.recordAccess('ab/new')
     cm.prune()
-    // 'old' should be removed first (no access recorded)
-    expect(existsSync(join(dir, 'new'))).toBe(true)
+    // 'old' should be removed first (no access recorded, old atime)
+    expect(existsSync(join(sub, 'new'))).toBe(true)
+    expect(existsSync(join(sub, 'old'))).toBe(false)
   })
 })
