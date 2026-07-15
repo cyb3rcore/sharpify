@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import fp from 'fastify-plugin'
 import { join, dirname } from 'node:path'
 import { existsSync, mkdirSync, statSync, readFileSync, renameSync } from 'node:fs'
-import sharp from 'sharp'
+import type sharp from 'sharp'
 import type { SharpifyOptions, NormalizedParams } from './types'
 import { parseParams, normalizeParams } from './params'
 import { computeCacheKey, cacheSubpath, CacheManager } from './cache'
@@ -46,9 +46,19 @@ function hasTransformParams(params: NormalizedParams): boolean {
     || params.palette !== undefined
     || params.fit !== undefined
     || params.position !== undefined
+    || params.animated !== undefined
+    || params.withoutEnlargement !== undefined
 }
 
 async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
+  // Check sharp availability at registration time (before route handler)
+  let sharpInstance: typeof sharp
+  try {
+    sharpInstance = (await import('sharp')).default
+  } catch {
+    throw new Error('@cyb3rcore/sharpify: sharp is not available. Install it: npm install sharp')
+  }
+
   const config: SharpifyOptions = {
     maxWidth: 4096,
     maxHeight: 4096,
@@ -104,9 +114,10 @@ async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
     // This ensures cache file extension matches actual content
     let sourceHasAlpha = false
     let sourceFormatActual = pathname.split('.').pop() ?? 'jpeg'
+    let srcBuf: Buffer
     try {
-      const srcBuf = readFileSync(sourcePath)
-      const meta = await sharp(srcBuf).metadata()
+      srcBuf = readFileSync(sourcePath)
+      const meta = await sharpInstance(srcBuf).metadata()
       sourceHasAlpha = meta.channels === 4 || (meta.hasAlpha ?? false)
       sourceFormatActual = meta.format ?? sourceFormatActual
     } catch {
@@ -119,6 +130,8 @@ async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
       sourceHasAlpha,
       params
     )
+    // Propagate negotiated format so buildPipeline uses it for encoding
+    params.format = fmt.format
     const ext = fmt.format === 'jpeg' ? 'jpg' : fmt.format
     const cacheDirRel = cacheSubpath(cacheKey)
     const cacheFileName = `${cacheDirRel}.${ext}`
@@ -140,10 +153,11 @@ async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
     try {
       // Atomic write: write to .tmp then rename
       const tmpPath = cacheFilePath + '.tmp.' + process.pid
-      await transformAndCache(sourcePath, tmpPath, params, config)
+      await transformAndCache(sourcePath, tmpPath, params, config, srcBuf)
       mkdirSync(dirname(cacheFilePath), { recursive: true })
       renameSync(tmpPath, cacheFilePath)
       cacheManager.recordAccess(cacheFileName)
+      cacheManager.prune()
 
       return reply.sendFile(cacheFileName, config.cacheDir)
     } catch (err) {

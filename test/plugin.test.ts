@@ -110,4 +110,31 @@ describe('sharpify plugin', () => {
     expect(res.statusCode).toBe(200)
     expect(res.headers['content-type']).toBe('image/webp')
   })
+
+  it('serves original on transformation error', async () => {
+    // crop=0,0,0,0 will cause sharp to throw (zero-dimension extract)
+    const res = await app.inject({
+      method: 'GET',
+      url: '/images/test.jpg?crop=0,0,0,0',
+    })
+    // Should still get 200 with original image (not 500)
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toMatch(/image\/jpe?g/)
+  })
+
+  it('rejects path traversal attempts', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/images/../../../etc/passwd',
+    })
+    expect(res.statusCode).toBe(404)
+  })
+
+  it('handles concurrent requests without crashing', async () => {
+    const promises = Array.from({ length: 10 }, (_, i) =>
+      app.inject({ method: 'GET', url: `/images/test.jpg?w=${50 + i}` })
+    )
+    const results = await Promise.all(promises)
+    results.forEach(r => expect(r.statusCode).toBe(200))
+  })
 })

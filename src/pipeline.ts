@@ -102,10 +102,11 @@ export async function transformAndCache(
   sourcePath: string,
   cachePath: string,
   params: NormalizedParams,
-  config: SharpifyOptions
+  config: SharpifyOptions,
+  sourceBuffer?: Buffer
 ): Promise<void> {
-  const sourceBuffer = readFileSync(sourcePath)
-  const result = await buildPipeline(sourceBuffer, params, config)
+  const srcBuf = sourceBuffer ?? readFileSync(sourcePath)
+  const result = await buildPipeline(srcBuf, params, config)
   mkdirSync(dirname(cachePath), { recursive: true })
   writeFileSync(cachePath, result.buffer)
 }
