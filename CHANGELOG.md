@@ -1,3 +1,12 @@
+## 0.2.2
+
+- **fix:** add @semantic-release/git plugin so version bumps commit to repo (`b764908`)
+  Without this, semantic-release publishes new versions but never
+commits the updated package.json and CHANGELOG.md back to the repo.
+This left the repo permanently out of sync with what's on npm.
+
+- **chore:** gate release on CI passing, matching reactify pattern (`d8056a1`)
+
 # @cyb3rcore/sharpify
 
 ## 0.2.0
