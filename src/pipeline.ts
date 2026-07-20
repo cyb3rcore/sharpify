@@ -46,7 +46,8 @@ export async function buildPipeline(
       withoutEnlargement: params.withoutEnlargement ?? true,
     })
   } else if (params.withoutEnlargement) {
-    // Apply withoutEnlargement even at source dimensions
+    // Direct API path only: withoutEnlargement is not a server trigger — this only
+    // fires when buildPipeline() is called directly with no resize params.
     instance.resize(null, null, { withoutEnlargement: true })
   }
 

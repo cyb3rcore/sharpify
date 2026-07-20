@@ -99,6 +99,10 @@ describe('parseParams', () => {
     expect(hasTransformParams({ crop: '0,0,50,50' })).toBe(true)
     expect(hasTransformParams({ greyscale: true })).toBe(true)
   })
+  it('detects sharpenM1 as transform trigger', () => {
+    expect(hasTransformParams({ sharpenM1: 2 })).toBe(true)
+  })
+
 })
 
 describe('normalizeParams', () => {

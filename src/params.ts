@@ -83,6 +83,7 @@ export function normalizeParams(
   if (p.median !== undefined) p.median = Math.min(p.median, 5)
   if (p.sharpen !== undefined) p.sharpen = Math.min(p.sharpen, 10)
   if (p.timeout !== undefined) p.timeout = Math.min(p.timeout, 120)
+  if (p.quality !== undefined) p.quality = Math.min(Math.max(p.quality, 0), 100)
 
   // Validate failOn
   const validFailOn = ['none', 'truncated', 'error', 'warning']
@@ -104,7 +105,7 @@ function clamp(value: number | undefined, max: number): number | undefined {
 const TRANSFORM_TRIGGERS: Array<keyof NormalizedParams> = [
   'width', 'height', 'format', 'quality',
   'crop', 'pad',
-  'blur', 'sharpen', 'rotate', 'autoOrient', 'trim',
+  'blur', 'sharpen', 'sharpenM1', 'rotate', 'autoOrient', 'trim',
   'greyscale', 'flip', 'flop',
   'brightness', 'saturation', 'hue',
   'normalise', 'negate', 'gamma', 'tint', 'background',

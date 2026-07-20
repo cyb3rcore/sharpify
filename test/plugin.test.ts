@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { readFileSync, existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { mkdirSync } from 'node:fs'
+import sharp from 'sharp'
 
 const fixturesDir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
 
@@ -54,8 +55,6 @@ describe('sharpify plugin', () => {
     })
     expect(res.statusCode).toBe(200)
     expect(res.headers['content-type']).toMatch(/image\/jpe?g/)
-    // Verify it's actually resized
-    const sharp = (await import('sharp')).default
     const meta = await sharp(res.rawPayload).metadata()
     expect(meta.width).toBe(50)
   })
@@ -100,6 +99,20 @@ describe('sharpify plugin', () => {
     })
     expect(res.statusCode).toBe(200)
   })
+  it('applies sharpen when only sharpm param is set', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/images/test.jpg?sharpm=2',
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toMatch(/image\/jpe?g/)
+    const meta = await sharp(res.rawPayload).metadata()
+    // Should match source dimensions (no resize, just sharpen)
+    const sourceMeta = await sharp(readFileSync(join(fixturesDir, 'test.jpg'))).metadata()
+    expect(meta.width).toBe(sourceMeta.width)
+    expect(meta.height).toBe(sourceMeta.height)
+  })
+
 
   it('accept header negotiation serves webp', async () => {
     const res = await app.inject({

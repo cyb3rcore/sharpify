@@ -198,7 +198,7 @@ sourceRelativePath + sourceMtime + canonicalParams
 ## Tests
 
 ```sh
-npm test        # 44 tests across 6 files
+ npm test        # 64 tests across 5 files
 npm run build   # TypeScript compilation
 ```
 
