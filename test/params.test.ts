@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { parseParams, normalizeParams } from '../src/params'
+
+import { parseParams, normalizeParams, hasTransformParams } from '../src/params'
 import type { SharpifyOptions, NormalizedParams } from '../src/types'
 
 const defaultConfig: SharpifyOptions = {
@@ -55,6 +56,48 @@ describe('parseParams', () => {
   it('parses crop=left,top,width,height', () => {
     const result = parseParams({ crop: '10,20,300,400' }, defaultConfig)
     expect(result.crop).toBe('10,20,300,400')
+  })
+
+  it('parses float values for blur', () => {
+    const result = parseParams({ blur: '1.5' }, defaultConfig)
+    expect(result.blur).toBe(1.5)
+  })
+  it('parses float values for brightness', () => {
+    const result = parseParams({ bri: '1.5' }, defaultConfig)
+    expect(result.brightness).toBe(1.5)
+  })
+  it('parses float saturation (0.5)', () => {
+    const result = parseParams({ sat: '0.5' }, defaultConfig)
+    expect(result.saturation).toBe(0.5)
+  })
+  it('parses float gamma', () => {
+    const result = parseParams({ gam: '2.2' }, defaultConfig)
+    expect(result.gamma).toBe(2.2)
+  })
+  it('parses float linear multiplier', () => {
+    const result = parseParams({ mult: '1.5' }, defaultConfig)
+    expect(result.linearMultiplier).toBe(1.5)
+  })
+
+  it('detects width as transform trigger', () => {
+    expect(hasTransformParams({ width: 100 })).toBe(true)
+  })
+  it('detects format as transform trigger', () => {
+    expect(hasTransformParams({ format: 'webp' })).toBe(true)
+  })
+  it('does NOT trigger on fit alone', () => {
+    expect(hasTransformParams({ fit: 'cover' })).toBe(false)
+  })
+  it('does NOT trigger on position alone', () => {
+    expect(hasTransformParams({ position: 'top' })).toBe(false)
+  })
+  it('does NOT trigger on empty params', () => {
+    expect(hasTransformParams({})).toBe(false)
+  })
+  it('returns true for any trigger param', () => {
+    expect(hasTransformParams({ blur: 5 })).toBe(true)
+    expect(hasTransformParams({ crop: '0,0,50,50' })).toBe(true)
+    expect(hasTransformParams({ greyscale: true })).toBe(true)
   })
 })
 

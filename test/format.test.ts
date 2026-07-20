@@ -46,4 +46,20 @@ describe('negotiateFormat', () => {
     const result = negotiateFormat(undefined, 'jpeg', false, p)
     expect(result.quality).toBe(50)
   })
+
+  it('handles Accept wildcard image/*', () => {
+    const p: NormalizedParams = {}
+    const result = negotiateFormat('image/*', 'jpeg', false, p)
+    expect(result.format).toBe('avif') // best match in priority list
+  })
+  it('handles Accept */* with explicit source preference', () => {
+    const p: NormalizedParams = {}
+    const result = negotiateFormat('*/*', 'png', false, p)
+    expect(result.format).toBe('avif') // top priority
+  })
+  it('falls back to source when Accept has no matching format for alpha', () => {
+    const p: NormalizedParams = {}
+    const result = negotiateFormat('image/webp', 'png', true, p)
+    expect(result.format).toBe('webp')
+  })
 })

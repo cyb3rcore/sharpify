@@ -5,51 +5,11 @@ import { existsSync, mkdirSync, statSync, readFileSync, renameSync } from 'node:
 import type sharp from 'sharp'
 import type { SharpifyOptions, NormalizedParams } from './types'
 import '@fastify/static'
-import { parseParams, normalizeParams } from './params'
+import { parseParams, normalizeParams, hasTransformParams } from './params'
 import { computeCacheKey, cacheSubpath, CacheManager } from './cache'
 import { negotiateFormat } from './format'
 import { transformAndCache } from './pipeline'
 
-function hasTransformParams(params: NormalizedParams): boolean {
-  return params.width !== undefined
-    || params.height !== undefined
-    || params.format !== undefined
-    || params.quality !== undefined
-    || params.blur !== undefined
-    || params.sharpen !== undefined
-    || params.rotate !== undefined
-    || params.autoOrient !== undefined
-    || params.trim !== undefined
-    || params.greyscale !== undefined
-    || params.flip !== undefined
-    || params.flop !== undefined
-    || params.brightness !== undefined
-    || params.saturation !== undefined
-    || params.hue !== undefined
-    || params.normalise !== undefined
-    || params.negate !== undefined
-    || params.gamma !== undefined
-    || params.tint !== undefined
-    || params.background !== undefined
-    || params.threshold !== undefined
-    || params.median !== undefined
-    || params.linearMultiplier !== undefined
-    || params.linearOffset !== undefined
-    || params.crop !== undefined
-    || params.pad !== undefined
-    || params.preserveMetadata !== undefined
-    || params.stripAlpha !== undefined
-    || params.lossless !== undefined
-    || params.progressive !== undefined
-    || params.mozjpeg !== undefined
-    || params.effort !== undefined
-    || params.bitdepth !== undefined
-    || params.palette !== undefined
-    || params.fit !== undefined
-    || params.position !== undefined
-    || params.animated !== undefined
-    || params.withoutEnlargement !== undefined
-}
 
 async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
   // Check sharp availability at registration time (before route handler)
@@ -77,7 +37,12 @@ async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
 
   fastify.get(`${config.prefix}*`, async (req: FastifyRequest, reply: FastifyReply) => {
     const prefix = config.prefix.endsWith('/') ? config.prefix : config.prefix + '/'
-    const urlPath = decodeURIComponent(req.url).split('?')[0]
+    let urlPath: string
+    try {
+      urlPath = decodeURIComponent(req.url).split('?')[0]
+    } catch {
+      return reply.code(400).send({ error: 'Malformed URL' })
+    }
     const pathname = urlPath.startsWith(prefix)
       ? urlPath.slice(prefix.length - 1)
       : urlPath.slice(config.prefix.length)
@@ -98,7 +63,8 @@ async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
 
     // No transform params → serve original
     if (!hasTransformParams(params)) {
-      return reply.sendFile(pathname, config.sourceDir)
+      reply.header('Cache-Control', 'public, no-cache')
+      return reply.sendFile(pathname, config.sourceDir, { cacheControl: false })
     }
 
     // Compute cache key
@@ -141,13 +107,15 @@ async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
     // Cache hit → serve cached
     if (existsSync(cacheFilePath)) {
       cacheManager.recordAccess(cacheFileName)
-      return reply.sendFile(cacheFileName, config.cacheDir)
+      reply.header('Cache-Control', 'public, max-age=31536000, immutable')
+      return reply.sendFile(cacheFileName, config.cacheDir, { cacheControl: false })
     }
 
     // Cache miss — check concurrency
     if (activeOps >= (config.maxConcurrency ?? 4)) {
       // Fall back to original when saturated
-      return reply.sendFile(pathname, config.sourceDir)
+      reply.header('Cache-Control', 'public, no-cache')
+      return reply.sendFile(pathname, config.sourceDir, { cacheControl: false })
     }
 
     activeOps++
@@ -159,12 +127,14 @@ async function sharpifyPlugin(fastify: FastifyInstance, opts: SharpifyOptions) {
       renameSync(tmpPath, cacheFilePath)
       cacheManager.recordAccess(cacheFileName)
       cacheManager.prune()
+      reply.header('Cache-Control', 'public, max-age=31536000, immutable')
 
-      return reply.sendFile(cacheFileName, config.cacheDir)
+      return reply.sendFile(cacheFileName, config.cacheDir, { cacheControl: false })
     } catch (err) {
       req.log.error({ err, url: req.url }, 'sharpify: transformation failed, serving original')
       // Fall back to original image on any processing error
-      return reply.sendFile(pathname, config.sourceDir)
+      reply.header('Cache-Control', 'public, no-cache')
+      return reply.sendFile(pathname, config.sourceDir, { cacheControl: false })
     } finally {
       activeOps--
     }

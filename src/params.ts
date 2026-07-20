@@ -13,7 +13,7 @@ export function parseParams(
   const num = (key: string): number | undefined => {
     const s = str(key)
     if (s === undefined) return undefined
-    const n = parseInt(s, 10)
+    const n = parseFloat(s)
     return isNaN(n) ? undefined : n
   }
   const bool = (key: string): boolean | undefined => {
@@ -99,4 +99,23 @@ export function normalizeParams(
 function clamp(value: number | undefined, max: number): number | undefined {
   if (value === undefined) return undefined
   return Math.min(Math.max(value, 1), max)
+}
+
+const TRANSFORM_TRIGGERS: Array<keyof NormalizedParams> = [
+  'width', 'height', 'format', 'quality',
+  'crop', 'pad',
+  'blur', 'sharpen', 'rotate', 'autoOrient', 'trim',
+  'greyscale', 'flip', 'flop',
+  'brightness', 'saturation', 'hue',
+  'normalise', 'negate', 'gamma', 'tint', 'background',
+  'threshold', 'median',
+  'linearMultiplier', 'linearOffset',
+  'lossless', 'progressive', 'mozjpeg',
+  'effort', 'bitdepth', 'palette',
+  'stripAlpha', 'preserveMetadata',
+  'animated',
+]
+
+export function hasTransformParams(params: NormalizedParams): boolean {
+  return TRANSFORM_TRIGGERS.some(k => params[k] !== undefined)
 }

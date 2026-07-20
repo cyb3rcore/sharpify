@@ -9,11 +9,13 @@ export async function buildPipeline(
   params: NormalizedParams,
   config: SharpifyOptions
 ): Promise<{ buffer: Buffer; info: sharp.OutputInfo }> {
-  const meta = await sharp(sourceBuffer).metadata()
-
-  // Determine format
-  const srcFormat = meta.format ?? 'jpeg'
-  const hasAlpha = meta.channels === 4 || (meta.hasAlpha ?? false)
+  // Determine format — metadata only needed if format wasn't pre-negotiated by caller
+  let meta: sharp.Metadata | null = null
+  if (!params.format) {
+    meta = await sharp(sourceBuffer).metadata()
+  }
+  const srcFormat = meta?.format ?? 'jpeg'
+  const hasAlpha = meta ? (meta.channels === 4 || (meta.hasAlpha ?? false)) : false
   const fmt = negotiateFormat(undefined, srcFormat, hasAlpha, params)
 
   const instance = sharp(sourceBuffer, {
@@ -29,6 +31,13 @@ export async function buildPipeline(
   if (params.flop) instance.flop()
   if (params.trim) instance.trim({ threshold: params.trimThreshold ?? 10 })
 
+  // Crop (pre-resize)
+  if (params.crop) {
+    const parts = params.crop.split(',').map(Number)
+    if (parts.length === 4 && parts.every(n => !isNaN(n))) {
+      instance.extract({ left: parts[0], top: parts[1], width: parts[2], height: parts[3] })
+    }
+  }
   // Resize (core operation)
   if (params.width || params.height) {
     instance.resize(params.width, params.height, {
@@ -43,10 +52,11 @@ export async function buildPipeline(
 
   // Image adjustments
   if (params.blur !== undefined) instance.blur(params.blur)
-  if (params.sharpen !== undefined) {
-    instance.sharpen(params.sharpenM1 !== undefined
-      ? { sigma: params.sharpen, m1: params.sharpenM1 }
-      : { sigma: params.sharpen })
+  if (params.sharpen !== undefined || params.sharpenM1 !== undefined) {
+    instance.sharpen({
+      sigma: params.sharpen ?? 1,
+      ...(params.sharpenM1 !== undefined ? { m1: params.sharpenM1 } : {}),
+    })
   }
   if (params.greyscale) instance.greyscale()
   if (params.normalise) instance.normalise()
@@ -68,14 +78,6 @@ export async function buildPipeline(
   if (params.background) instance.flatten({ background: params.background })
   if (params.stripAlpha) instance.removeAlpha()
   if (params.preserveMetadata) instance.withMetadata()
-
-  // Crop (pre-resize)
-  if (params.crop) {
-    const parts = params.crop.split(',').map(Number)
-    if (parts.length === 4 && parts.every(n => !isNaN(n))) {
-      instance.extract({ left: parts[0], top: parts[1], width: parts[2], height: parts[3] })
-    }
-  }
 
   // Pad border
   if (params.pad) {

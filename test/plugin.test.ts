@@ -137,4 +137,42 @@ describe('sharpify plugin', () => {
     const results = await Promise.all(promises)
     results.forEach(r => expect(r.statusCode).toBe(200))
   })
+
+  it('sets expected content-type after format conversion', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/images/test.png?fmt=webp',
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toBe('image/webp')
+  })
+  it('handles Accept negotiation with AVIF preference', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/images/test.jpg?w=100',
+      headers: { accept: 'image/avif,image/webp,image/jpeg' },
+    })
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['content-type']).toBe('image/avif')
+  })
+
+  it('returns 400 for malformed percent-encoding in URL', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/images/test.jpg?w=%GG',
+    })
+    expect(res.statusCode).toBe(400)
+  })
+
+  it('sets immutable cache on cached derivative', async () => {
+    // Cache hit needed — make two requests with same params
+    await app.inject({ method: 'GET', url: '/images/test.jpg?w=50' })
+    const res = await app.inject({ method: 'GET', url: '/images/test.jpg?w=50' })
+    expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable')
+  })
+
+  it('sets no-cache on original image', async () => {
+    const res = await app.inject({ method: 'GET', url: '/images/test.jpg' })
+    expect(res.headers['cache-control']).toBe('public, no-cache')
+  })
 })
