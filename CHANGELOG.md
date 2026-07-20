@@ -1,3 +1,14 @@
+## 0.2.3
+
+- **fix:** add sharpenM1 to TRANSFORM_TRIGGERS, clamp quality, update tests (`ef11f6a`)
+  - Add sharpenM1 to TRANSFORM_TRIGGERS so ?sharpm=N alone triggers a pipeline
+- Clamp quality [0,100] in normalizeParams (consistent with blur/median/sharpen)
+- Update comment on withoutEnlargement-only pipeline branch
+- Replace dynamic import('sharp') with static import in plugin test
+- Add unit test for sharpenM1 trigger detection
+- Add e2e test verifying ?sharpm=2 triggers transform via full server path
+- Fix stale README test count (44->64, 6->5 files)
+
 ## 0.2.2
 
 - **fix:** add @semantic-release/git plugin so version bumps commit to repo (`b764908`)
